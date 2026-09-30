@@ -1,0 +1,39 @@
+name: Publish Saminaras Inspector 0.6.2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-saminaras-0.6.2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o artifact.zip 'https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-5020-820a-959f-2e50d3be3e41/raw?se=2026-09-30T03%3A26%3A37Z&sp=r&sv=2026-02-06&sr=b&scid=50ef2c95-0dbf-5c1b-aa12-f90373e263ab&skoid=061609b8-1cdb-4a5b-9e68-c7ab9a523a8f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-09-29T15%3A23%3A20Z&ske=2026-09-30T15%3A23%3A20Z&sks=b&skv=2026-02-06&sig=hF9r5VB1wRsFIPGPvuD5rsu7Q1t1ftDrl9jhylZRWEc%3D'
+          unzip -o artifact.zip -d artifact
+          APK="$(find artifact -type f -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          cp "$APK" saminaras-inspector-0.6.2.apk
+          cp "$APK" saminaras-inspector.apk
+          sha256sum saminaras-inspector-0.6.2.apk saminaras-inspector.apk
+
+      - name: Publish public release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="codebazcom/codebazcom"
+          if gh release view v0.6.2 --repo "$REPO" >/dev/null 2>&1; then
+            gh release upload v0.6.2 saminaras-inspector-0.6.2.apk saminaras-inspector.apk --repo "$REPO" --clobber
+          else
+            gh release create v0.6.2 saminaras-inspector-0.6.2.apk saminaras-inspector.apk               --repo "$REPO" --target main               --title "Saminaras Inspector Android v0.6.2"               --notes "Self-hosted realtime notifications, notification center, deep links, reconnect recovery, and inspector workflow fixes."
+          fi
