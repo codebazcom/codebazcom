@@ -1,4 +1,4 @@
-name: Publish Inspector Android 0.6.5 public
+name: Verify public Inspector Android 0.6.5
 
 on:
   push:
@@ -6,52 +6,22 @@ on:
     paths:
       - .github/workflows/publish-inspector-065-public.yml
 
-permissions:
-  contents: write
-
-concurrency:
-  group: publish-inspector-065-public
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Download and verify the existing successful build
-        env:
-          ARTIFACT_URL: 'https://sdmntprpolandcentral.oaiusercontent.com/files/00000000-995c-820a-86c4-66b5071ba88f/raw?se=2026-10-02T04%3A57%3A01Z&sp=r&sv=2026-02-06&sr=b&scid=9cf0e4c0-6e14-5799-bc5f-473736ce89ba&skoid=061609b8-1cdb-4a5b-9e68-c7ab9a523a8f&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-02T02%3A22%3A32Z&ske=2026-10-03T02%3A22%3A32Z&sks=b&skv=2026-02-06&sig=XZe5XONC2yn3xLbn7V/j0a9TXW3J9WYRclV0xezS1%2B8%3D'
+      - name: Verify anonymous versioned and latest APK downloads
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
-          curl --fail --location --silent --show-error --retry 3 --max-time 180 --proto '=https' "$ARTIFACT_URL" -o inspector-artifact.zip
-          printf '%s\n' 'c6f1572614fa5525f665b59bd0f229c482fce29c614da262a4729700aa6817b0  inspector-artifact.zip' | sha256sum -c -
-          mkdir -p public-release
-          unzip -j inspector-artifact.zip saminaras-inspector-0.6.5.apk -d public-release
-          cd public-release
-          printf '%s\n' '9c582735b4c95c290de4395aafdb4b6edab897c6a5f8530d9b4e1b1b69128b10  saminaras-inspector-0.6.5.apk' | sha256sum -c -
-          cp saminaras-inspector-0.6.5.apk saminaras-inspector.apk
-          sha256sum saminaras-inspector-0.6.5.apk saminaras-inspector.apk > SHA256SUMS.txt
-          cat > "$RUNNER_TEMP/release-notes.txt" <<'NOTES'
-          نسخه اندروید بازرس ثمین ۰٫۶٫۵ (کد نسخه ۱۲)
-
-          اصلاح سازگاری اندازه بخش‌های آپلود با پاسخ سرور و بازیابی ارسال‌های قدیمی مانده در وضعیت «نتیجه نامشخص».
-          این فایل همان APK بیلد موفق قبلی است و دوباره ساخته یا امضا نشده است.
-
-          نسخه جدید را به صورت به‌روزرسانی روی نسخه قبلی نصب کنید. برنامه را حذف نکنید و داده‌های برنامه را پاک نکنید تا فایل‌های ارسال‌نشده حفظ شوند.
-          NOTES
-      - name: Publish APK and update the stable latest download
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/public-release"
-          if gh release view v0.6.5 --repo codebazcom/codebazcom >/dev/null 2>&1; then
-            gh release upload v0.6.5 saminaras-inspector-0.6.5.apk saminaras-inspector.apk SHA256SUMS.txt --repo codebazcom/codebazcom --clobber
-            gh release edit v0.6.5 --repo codebazcom/codebazcom --title 'Saminaras Inspector Android v0.6.5' --notes-file "$RUNNER_TEMP/release-notes.txt" --draft=false --latest
-          else
-            gh release create v0.6.5 saminaras-inspector-0.6.5.apk saminaras-inspector.apk SHA256SUMS.txt --repo codebazcom/codebazcom --target main --title 'Saminaras Inspector Android v0.6.5' --notes-file "$RUNNER_TEMP/release-notes.txt" --draft
-            gh release edit v0.6.5 --repo codebazcom/codebazcom --draft=false --latest
-          fi
+          curl --fail --location --silent --show-error --retry 3 --max-time 120 --proto '=https' --write-out 'versioned_http=%{http_code} bytes=%{size_download}\n' 'https://github.com/codebazcom/codebazcom/releases/download/v0.6.5/saminaras-inspector-0.6.5.apk' -o versioned.apk
+          printf '%s\n' '9c582735b4c95c290de4395aafdb4b6edab897c6a5f8530d9b4e1b1b69128b10  versioned.apk' | sha256sum -c -
+          curl --fail --location --silent --show-error --retry 3 --max-time 120 --proto '=https' --write-out 'latest_http=%{http_code} bytes=%{size_download}\n' 'https://github.com/codebazcom/codebazcom/releases/latest/download/saminaras-inspector.apk' -o latest.apk
+          printf '%s\n' '9c582735b4c95c290de4395aafdb4b6edab897c6a5f8530d9b4e1b1b69128b10  latest.apk' | sha256sum -c -
+          cmp versioned.apk latest.apk
+          test "$(stat -c '%s' versioned.apk)" = 82554772
+          echo 'Both APK links work without authentication and match the original verified 0.6.5 build.'
